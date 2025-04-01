@@ -91,7 +91,7 @@ async function runBot() {
                 fs.appendFileSync(LOG_FILE, `[${new Date().toISOString()}] Failed: ${result.error}\n`);
             }
             
-            const waitTime = Math.random() * (1200000 - 180000) + 180000;
+            const waitTime = Math.random() * (300000 - 60000) + 60000;
             const minutes = Math.floor(waitTime / 60000);
             const seconds = ((waitTime % 60000) / 1000).toFixed(2);
 
