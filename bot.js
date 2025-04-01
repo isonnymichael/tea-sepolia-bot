@@ -1,4 +1,4 @@
-import { ethers } from "ethers";
+const { ethers } = require("ethers");
 import fs from "fs";
 import dotenv from "dotenv";
 dotenv.config();
