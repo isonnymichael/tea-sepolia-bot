@@ -1,0 +1,16 @@
+# Node.js
+node_modules/
+
+# Log files
+bot.log
+
+# Environment variables
+.env
+
+# npm debug
+npm-debug.log*
+
+# IDE or editor folders
+.vscode/
+.idea/
+.DS_Store
