@@ -52,7 +52,10 @@ const contract = new ethers.Contract(CONTRACT_ADDRESS, ABI, wallet);
 const actions = [
     "brew_tea", "drink_tea", "gift_tea", "share_tea", "trade_tea",
     "collect_tea", "sell_tea", "steep_tea", "blend_tea", "taste_tea",
-    "store_tea", "offer_tea", "heat_water", "pour_tea", "sip_tea"
+    "store_tea", "offer_tea", "heat_water", "pour_tea", "sip_tea",
+    "stir_tea", "infuse_tea", "pack_tea", "dry_tea", "ferment_tea",
+    "grind_tea", "weigh_tea", "filter_tea", "boil_water", "strain_tea",
+    "smell_tea", "inspect_leaves", "cup_tea", "sweeten_tea", "cool_tea"
 ];
 const loop = 500;
 
@@ -68,22 +71,35 @@ async function interactWithContract() {
         const receipt = await provider.getTransactionReceipt(tx.hash);
         const gasUsed = parseFloat(ethers.formatUnits(receipt.gasUsed, "gwei")).toFixed(8);
         console.log(`Gas Used: ${gasUsed} TEA`);
+        return { success: true };
     } catch (error) {
         console.error("Transaction failed", error);
+        return { success: false, error: error.message };
     }
 }
 
 async function runBot() {
-    for (let i = 0; i < loop; i++) {
-        await interactWithContract();
-        const waitTime = Math.random() * 60000;
-        console.log(`Waiting for next interact: ${(waitTime / 1000).toFixed(2)} seconds...`);
-        await new Promise(r => setTimeout(r, waitTime));
+    let successCount = 0;
+    let failCount = 0;
+    while (true) {
+        for (let i = 0; i < loop; i++) {
+            const result = await interactWithContract();
+            if (result.success) {
+                successCount++;
+            } else {
+                failCount++;
+                fs.appendFileSync(LOG_FILE, `[${new Date().toISOString()}] Failed: ${result.error}\n`);
+            }
+            
+            const waitTime = Math.random() * 300000;
+            console.log(`Waiting for next interact: ${(waitTime / 1000).toFixed(2)} seconds...`);
+            await new Promise(r => setTimeout(r, waitTime));
+        }
+        
+        const logMessage = `[${new Date().toISOString()}] Bot completed ${loop} transactions. Success: ${successCount}, Failed: ${failCount}\n`;
+        fs.appendFileSync(LOG_FILE, logMessage);
+        console.log("🔄 Restarting bot...");
     }
-    
-    const logMessage = `[${new Date().toISOString()}] Bot has completed ${loop} transactions today.\n`;
-    fs.appendFileSync(LOG_FILE, logMessage);
-    console.log(`✅ Bot has completed ${loop} transactions today. Log recorded.`);
 }
 
 runBot().catch(console.error);
