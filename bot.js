@@ -91,7 +91,7 @@ async function runBot() {
                 fs.appendFileSync(LOG_FILE, `[${new Date().toISOString()}] Failed: ${result.error}\n`);
             }
             
-            const waitTime = Math.random() * (90000 - 30000) + 30000;
+            const waitTime = Math.random() * (60000 - 5000) + 5000;
             const seconds = (waitTime / 1000).toFixed(2);
             
             console.log(`Waiting for next interact: ${seconds} seconds...`);
