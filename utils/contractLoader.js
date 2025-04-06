@@ -1,3 +1,4 @@
+import { ethers } from "ethers";
 import { getWallet } from "./config.js";
 import { logError } from "./logger.js";
 import fs from "fs";

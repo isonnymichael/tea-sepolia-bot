@@ -1,107 +1,163 @@
-import { ethers } from "ethers";
-import fs from "fs";
-import dotenv from "dotenv";
-dotenv.config();
+import { log, logError } from "./utils/logger.js";
+import { 
+    interactWithTeaGame, 
+    getRandomTeaAction 
+} from "./contracts/TeaGame.js";
+import { 
+    vote, 
+    getRandomOption 
+} from "./contracts/VotingSystem.js";
+import { 
+    sendMessage, 
+    generateRandomMessage 
+} from "./contracts/SimpleChat.js";
 
-const RPC_URL = "https://tea-sepolia.g.alchemy.com/public";
-const CONTRACT_ADDRESS = "0xcd77Fa493532Af747769A2dc0dd6111a8C3C1E84";
-const PRIVATE_KEY = process.env.PRIVATE_KEY;
-const LOG_FILE = "bot.log";
+// Konfigurasi bot
+const OPERATIONAL_HOURS = 12; // Jam operasional per hari
+const MIN_INTERVAL = 15000;  // 15 detik
+const MAX_INTERVAL = 60000; // 60 detik
+const LOOP_COUNT = 500;
 
-const ABI = [
-    {
-        "anonymous": false,
-        "inputs": [
-            {"indexed": true, "internalType": "address", "name": "player", "type": "address"},
-            {"indexed": false, "internalType": "string", "name": "action", "type": "string"},
-            {"indexed": false, "internalType": "uint256", "name": "value", "type": "uint256"}
-        ],
-        "name": "Action",
-        "type": "event"
+// Fungsi untuk mendapatkan interval acak
+const getRandomInterval = () => {
+    return Math.floor(Math.random() * (MAX_INTERVAL - MIN_INTERVAL + 1)) + MIN_INTERVAL;
+};
+
+// Daftar aksi yang tersedia
+const ACTIONS = [
+    { 
+        name: "TeaGame",
+        func: async () => {
+            const action = getRandomTeaAction();
+            return interactWithTeaGame(action.id);
+        },
+        weight: 2  // Bobot relatif 2
     },
-    {
-        "inputs": [
-            {"internalType": "string", "name": "action", "type": "string"},
-            {"internalType": "uint256", "name": "value", "type": "uint256"}
-        ],
-        "name": "interact",
-        "outputs": [],
-        "stateMutability": "nonpayable",
-        "type": "function"
+    { 
+        name: "VotingSystem",
+        func: async () => vote(getRandomOption()),
+        weight: 2  // Bobot relatif 2
     },
-    {
-        "inputs": [{"internalType": "address", "name": "player", "type": "address"}],
-        "name": "getScore",
-        "outputs": [{"internalType": "uint256", "name": "", "type": "uint256"}],
-        "stateMutability": "view",
-        "type": "function"
-    },
-    {
-        "inputs": [{"internalType": "address", "name": "", "type": "address"}],
-        "name": "scores",
-        "outputs": [{"internalType": "uint256", "name": "", "type": "uint256"}],
-        "stateMutability": "view",
-        "type": "function"
+    { 
+        name: "SimpleChat",
+        func: async () => sendMessage(generateRandomMessage()),
+        weight: 2  // Bobot relatif 2
     }
 ];
 
-const provider = new ethers.JsonRpcProvider(RPC_URL);
-const wallet = new ethers.Wallet(PRIVATE_KEY, provider);
-const contract = new ethers.Contract(CONTRACT_ADDRESS, ABI, wallet);
+// Hitung total weight untuk distribusi probabilitas
+const TOTAL_WEIGHT = ACTIONS.reduce((sum, action) => sum + action.weight, 0);
 
-const actions = [
-    "brew_tea", "drink_tea", "gift_tea", "share_tea", "trade_tea",
-    "collect_tea", "sell_tea", "steep_tea", "blend_tea", "taste_tea",
-    "store_tea", "offer_tea", "heat_water", "pour_tea", "sip_tea",
-    "stir_tea", "infuse_tea", "pack_tea", "dry_tea", "ferment_tea",
-    "grind_tea", "weigh_tea", "filter_tea", "boil_water", "strain_tea",
-    "smell_tea", "inspect_leaves", "cup_tea", "sweeten_tea", "cool_tea"
-];
-const loop = 500;
-
-async function interactWithContract() {
-    const action = actions[Math.floor(Math.random() * actions.length)];
-    const value = Math.floor(Math.random() * 10) + 1;
-
-    try {
-        const tx = await contract.interact(action, value);
-        console.log(`Sent tx: ${tx.hash} | Action: ${action} | Value: ${value}`);
-        await tx.wait();
-        
-        const receipt = await provider.getTransactionReceipt(tx.hash);
-        const gasUsed = parseFloat(ethers.formatUnits(receipt.gasUsed, "gwei")).toFixed(8);
-        console.log(`Gas Used: ${gasUsed} TEA`);
-        return { success: true };
-    } catch (error) {
-        console.error("Transaction failed", error);
-        return { success: false, error: error.message };
+// Fungsi untuk memilih aksi berdasarkan weight
+const selectRandomAction = () => {
+    let random = Math.random() * TOTAL_WEIGHT;
+    for (const action of ACTIONS) {
+        if (random < action.weight) {
+            return action;
+        }
+        random -= action.weight;
     }
-}
+    return ACTIONS[0]; // Fallback
+};
 
+// Fungsi utama untuk menjalankan bot
 async function runBot() {
+    const startTime = Date.now();
+    const endTime = startTime + (OPERATIONAL_HOURS * 3600 * 1000);
+
     let successCount = 0;
     let failCount = 0;
-    while (true) {
-        for (let i = 0; i < loop; i++) {
-            const result = await interactWithContract();
+    let loopIteration = 0;
+    
+    log(`🤖 Starting automated bot for ${OPERATIONAL_HOURS} hours`);
+    
+    while (Date.now() < endTime) {
+        try {
+            loopIteration++;
+            log(`\n=== Loop iteration ${loopIteration} ===`);
+            
+            // Pilih aksi secara random dengan weight
+            const action = selectRandomAction();
+            log(`Executing ${action.name} action...`);
+            
+            // Eksekusi aksi
+            const result = await action.func();
+            
+            // Update counters
             if (result.success) {
                 successCount++;
+                log(`✅ ${action.name} action succeeded`);
+                if (result.hash) {
+                    log(`   TX Hash: ${result.hash}`);
+                }
             } else {
                 failCount++;
-                fs.appendFileSync(LOG_FILE, `[${new Date().toISOString()}] Failed: ${result.error}\n`);
+                logError(`❌ ${action.name} action failed`);
+                if (result.error) {
+                    logError(`   Reason: ${result.error}`);
+                }
+                if (result.skipped) {
+                    log(`   Action skipped: ${result.reason}`);
+                }
             }
             
-            const waitTime = Math.random() * (60000 - 5000) + 5000;
-            const seconds = (waitTime / 1000).toFixed(2);
+            // Delay sebelum aksi berikutnya
+            const waitTime = getRandomInterval();
+            log(`Waiting ${(waitTime/1000).toFixed(1)} seconds for next action...`);
+            await new Promise(resolve => setTimeout(resolve, waitTime));
             
-            console.log(`Waiting for next interact: ${seconds} seconds...`);
-            await new Promise(r => setTimeout(r, waitTime));
+            // Reset counters setiap LOOP_COUNT iterasi
+            if (loopIteration % LOOP_COUNT === 0) {
+                log(`\n=== Summary after ${LOOP_COUNT} iterations ===`);
+                log(`Success: ${successCount} | Failed: ${failCount}`);
+                log("Resetting counters...\n");
+                successCount = 0;
+                failCount = 0;
+            }
+            
+        } catch (error) {
+            logError(`Unexpected error in main loop: ${error.message}`);
+            logError(error.stack);
+            
+            // Tunggu lebih lama jika terjadi error
+            await new Promise(resolve => setTimeout(resolve, 60000));
         }
-        
-        const logMessage = `[${new Date().toISOString()}] Bot completed ${loop} transactions. Success: ${successCount}, Failed: ${failCount}\n`;
-        fs.appendFileSync(LOG_FILE, logMessage);
-        console.log("🔄 Restarting bot...");
+    }
+
+    log(`⏳ Bot has completed its ${OPERATIONAL_HOURS}-hour operational period`);
+}
+
+// Handle process termination
+process.on('SIGINT', async () => {
+    log("\nGracefully shutting down bot...");
+    process.exit(0);
+});
+
+async function startBotWithSchedule() {
+    while (true) {
+        try {
+            await runBot();
+            
+            // Hitung waktu sampai jam operasional berikutnya
+            const now = new Date();
+            const nextStart = new Date(now);
+            nextStart.setHours(nextStart.getHours() + 12, 0, 0, 0);
+            
+            const delay = nextStart - now;
+            log(`💤 Bot sleeping for ${(delay/3600000).toFixed(2)} hours until ${nextStart.toLocaleString()}`);
+            
+            await new Promise(resolve => setTimeout(resolve, delay));
+            
+        } catch (error) {
+            logError(`Fatal error: ${error.message}`);
+            logError(`Stack trace: ${error.stack}`);
+            
+            const retryDelay = 60000; // 1 menit jika error
+            log(`Waiting ${retryDelay/1000} seconds before retrying...`);
+            await new Promise(resolve => setTimeout(resolve, retryDelay));
+        }
     }
 }
 
-runBot().catch(console.error);
+// Jalankan bot dengan jadwal 12 jam/hari
+startBotWithSchedule();
