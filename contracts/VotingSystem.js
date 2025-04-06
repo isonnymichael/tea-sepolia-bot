@@ -33,26 +33,10 @@ export const vote = async (optionId) => {
     const optionName = VOTE_OPTIONS[optionId];
 
     try {
-        // Cek apakah sudah pernah vote
-        const address = await contract.signer.getAddress();
-        const hasVoted = await contract.hasVoted(address);
-        
-        if (hasVoted) {
-            log(`Skipping vote for ${optionName} - already voted`);
-            return { 
-                success: false, 
-                error: "Already voted",
-                skipped: true,
-                optionId,
-                optionName
-            };
-        }
-
-        // Lakukan voting
+        // Lakukan voting (tanpa pengecekan hasVoted)
         const tx = await contract.vote(optionId);
         log(`Voting for ${optionName} - TX: ${tx.hash}`);
         
-        // Tidak perlu wait() karena delay ditangani di bot.js
         return { 
             success: true,
             hash: tx.hash,
@@ -71,19 +55,61 @@ export const vote = async (optionId) => {
 };
 
 /**
+ * Mendapatkan jumlah vote untuk opsi tertentu
+ * @param {number} optionId - ID opsi
+ * @returns {Promise<{success: boolean, votes?: number, optionId?: number, optionName?: string, error?: string}>}
+ */
+export const getVotes = async (optionId) => {
+    if (optionId < 0 || optionId > 3) {
+        const errorMsg = `Invalid option ID: ${optionId}. Must be between 0-3`;
+        logError(errorMsg);
+        return { 
+            success: false, 
+            error: errorMsg,
+            optionId,
+            optionName: VOTE_OPTIONS[optionId] || 'Unknown'
+        };
+    }
+
+    const optionName = VOTE_OPTIONS[optionId];
+
+    try {
+        const votes = await contract.getVotes(optionId);
+        return {
+            success: true,
+            votes: Number(votes),
+            optionId,
+            optionName
+        };
+    } catch (error) {
+        logError(`Failed to get votes for ${optionName}: ${error.message}`);
+        return {
+            success: false,
+            error: error.message,
+            optionId,
+            optionName
+        };
+    }
+};
+
+/**
  * Mendapatkan hasil voting semua opsi
  * @returns {Promise<{success: boolean, results?: Object, error?: string}>}
  */
-export const getVotingResults = async () => {
+export const getAllVotingResults = async () => {
     try {
         const results = {};
         
         for (const [optionId, optionName] of Object.entries(VOTE_OPTIONS)) {
-            const votes = await contract.getVotes(optionId);
-            results[optionId] = {
-                name: optionName,
-                votes: Number(votes)
-            };
+            const { success, votes } = await getVotes(Number(optionId));
+            if (success) {
+                results[optionId] = {
+                    name: optionName,
+                    votes
+                };
+            } else {
+                throw new Error(`Failed to get votes for option ${optionId}`);
+            }
         }
 
         log(`Current voting results: ${JSON.stringify(results)}`);
@@ -93,7 +119,7 @@ export const getVotingResults = async () => {
             timestamp: Date.now()
         };
     } catch (error) {
-        logError(`Failed to get voting results: ${error.message}`);
+        logError(`Failed to get all voting results: ${error.message}`);
         return {
             success: false,
             error: error.message
