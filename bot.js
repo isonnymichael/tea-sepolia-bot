@@ -11,8 +11,13 @@ import {
     sendMessage, 
     generateRandomMessage 
 } from "./contracts/SimpleChat.js";
+import { 
+    transferToken,
+    getTokenBalance
+} from "./contracts/TransferToken.js";
 
 // Konfigurasi bot
+const BOT_WALLET = "0x89915FBE9fA1978E0053B5402e42077c7763c8e6";
 const OPERATIONAL_HOURS = 12; // Jam operasional per hari
 const MIN_INTERVAL = 15000;  // 15 detik
 const MAX_INTERVAL = 60000; // 60 detik
@@ -42,6 +47,18 @@ const ACTIONS = [
         name: "SimpleChat",
         func: async () => sendMessage(generateRandomMessage()),
         weight: 2  // Bobot relatif 2
+    },
+    { 
+        name: "TransferToken",
+        func: async () => {
+            // Cek balance token sebelum transfer
+            const balance = await getTokenBalance(BOT_WALLET);
+            if (balance !== null) {
+                log(`Current token balance: ${balance}`);
+            }
+            return transferToken();
+        },
+        weight: 5 // Bobot relatif 5
     }
 ];
 
