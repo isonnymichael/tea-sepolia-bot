@@ -1,0 +1,29 @@
+[
+    {
+        "anonymous": false,
+        "inputs": [
+            {"indexed": true, "name": "player", "type": "address"},
+            {"indexed": false, "name": "action", "type": "string"},
+            {"indexed": false, "name": "value", "type": "uint256"}
+        ],
+        "name": "Action",
+        "type": "event"
+    },
+    {
+        "inputs": [
+            {"name": "action", "type": "string"},
+            {"name": "value", "type": "uint256"}
+        ],
+        "name": "interact",
+        "outputs": [],
+        "stateMutability": "nonpayable",
+        "type": "function"
+    },
+    {
+        "inputs": [{"name": "player", "type": "address"}],
+        "name": "getScore",
+        "outputs": [{"name": "", "type": "uint256"}],
+        "stateMutability": "view",
+        "type": "function"
+    }
+]
